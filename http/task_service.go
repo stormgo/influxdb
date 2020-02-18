@@ -21,6 +21,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ influxdb.TaskService = (*TaskService)(nil)
+
 // TaskBackend is all services and associated parameters required to construct
 // the TaskHandler.
 type TaskBackend struct {
@@ -151,6 +153,8 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	return h
 }
 
+// Task is a package-specific Task format that preserves the expected format for the API,
+// where time values are represented as strings
 type Task struct {
 	ID              influxdb.ID            `json:"id"`
 	OrganizationID  influxdb.ID            `json:"orgID"`
@@ -398,6 +402,50 @@ func convertRun(r httpRun) *influxdb.Run {
 	}
 
 	return run
+}
+
+func convertTask(t Task) *influxdb.Task {
+	task := &influxdb.Task{
+		ID:             t.ID,
+		OrganizationID: t.OrganizationID,
+		Organization:   t.Organization,
+		OwnerID:        t.OwnerID,
+		Name:           t.Name,
+		Description:    t.Description,
+		Status:         t.Status,
+		Flux:           t.Flux,
+		Every:          t.Every,
+		Cron:           t.Cron,
+		LastRunStatus:  t.LastRunStatus,
+		LastRunError:   t.LastRunError,
+		Metadata:       t.Metadata,
+	}
+
+	if t.LatestCompleted != "" {
+		if lc, err := time.Parse(time.RFC3339Nano, t.LatestCompleted); err != nil {
+			task.LatestCompleted = lc
+		}
+	}
+
+	if t.CreatedAt != "" {
+		if ca, err := time.Parse(time.RFC3339Nano, t.LatestCompleted); err != nil {
+			task.CreatedAt = ca
+		}
+	}
+
+	if t.UpdatedAt != "" {
+		if up, err := time.Parse(time.RFC3339Nano, t.UpdatedAt); err != nil {
+			task.UpdatedAt = up
+		}
+	}
+
+	if t.Offset != "" {
+		if offset, err := time.ParseDuration(t.Offset); err != nil {
+			task.Offset = offset
+		}
+	}
+
+	return task
 }
 
 type runsResponse struct {
@@ -1415,7 +1463,7 @@ type TaskService struct {
 }
 
 // FindTaskByID returns a single task
-func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, error) {
+func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1428,12 +1476,12 @@ func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, e
 	if err != nil {
 		return nil, err
 	}
-	return &tr.Task, nil
+	return convertTask(tr.Task), nil
 }
 
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
-func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]Task, int, error) {
+func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1474,32 +1522,35 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := make([]Task, len(tr.Tasks))
+	tasks := make([]*influxdb.Task, len(tr.Tasks))
 	for i := range tr.Tasks {
-		tasks[i] = tr.Tasks[i].Task
+		tasks[i] = convertTask(tr.Tasks[i].Task)
 	}
 	return tasks, len(tasks), nil
 }
 
 // CreateTask creates a new task.
-func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*Task, error) {
+func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var tr taskResponse
-	err := t.Client.
-		PostJSON(tc, prefixTasks).
-		DecodeJSON(&tr).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// err := t.Client.
+	// 	PostJSON(tc, prefixTasks).
+	// 	DecodeJSON(&tr).
+	// 	Do(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	return &tr.Task, nil
+	logger, _ := zap.NewDevelopment()
+	logger.Info("!!!!>....")
+
+	return convertTask(tr.Task), nil
 }
 
 // UpdateTask updates a single task with changeset.
-func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*Task, error) {
+func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1511,7 +1562,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxd
 		return nil, err
 	}
 
-	return &tr.Task, nil
+	return convertTask(tr.Task), nil
 }
 
 // DeleteTask removes a task by ID and purges all associated data and scheduled runs.
