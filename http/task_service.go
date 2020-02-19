@@ -575,6 +575,7 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 }
 
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("handlign the post task...")
 	ctx := r.Context()
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
@@ -641,6 +642,7 @@ type postTaskRequest struct {
 
 func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskRequest, error) {
 	var tc influxdb.TaskCreate
+	fmt.Println("here????")
 	if err := json.NewDecoder(r.Body).Decode(&tc); err != nil {
 		return nil, err
 	}
@@ -650,8 +652,8 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("or here....")
 	tc.OwnerID = auth.GetUserID()
-
 	// when creating a task we set the type so we can filter later.
 	tc.Type = influxdb.TaskSystemType
 
@@ -1533,18 +1535,17 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
 	var tr taskResponse
-	// err := t.Client.
-	// 	PostJSON(tc, prefixTasks).
-	// 	DecodeJSON(&tr).
-	// 	Do(ctx)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	fmt.Println("one.....")
+	err := t.Client.
+		PostJSON(tc, prefixTasks).
+		DecodeJSON(&tr).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	logger, _ := zap.NewDevelopment()
-	logger.Info("!!!!>....")
+	fmt.Println("two...")
 
 	return convertTask(tr.Task), nil
 }

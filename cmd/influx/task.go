@@ -186,7 +186,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []http.Task
+	var tasks []*influxdb.Task
 
 	if taskFindFlags.id != "" {
 		id, err := influxdb.IDFromString(taskFindFlags.id)
@@ -199,7 +199,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		tasks = append(tasks, *task)
+		tasks = append(tasks, task)
 	} else {
 		tasks, _, err = s.FindTasks(context.Background(), filter)
 		if err != nil {

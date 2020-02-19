@@ -11,16 +11,18 @@ import (
 )
 
 const (
-	taskOneID = ""
+	taskOneID = "e1b6931b1330a2a0"
+	// userOneID = "e1b6931b1330a2a1"
 )
 
 // TaskFields will include the IDGenerator, and Tasks
 type TaskFields struct {
 	IDGenerator   influxdb.IDGenerator
-	OrgTaskIDs    influxdb.IDGenerator
+	TaskIDs       influxdb.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 	Tasks         []*influxdb.Task
 	Organizations []*influxdb.Organization
+	Users         []*influxdb.User
 }
 
 type taskServiceF func(
@@ -94,11 +96,23 @@ func CreateTask(
 				},
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC)},
 				Tasks:         []*influxdb.Task{},
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "basicorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Users: []*influxdb.User{
+					{
+						Name: "friendlyuser",
+						ID:   MustIDBase16(userOneID),
+					},
+				},
 			},
 			args: args{
 				task: influxdb.TaskCreate{
 					// ID:             MustIDBase16(taskOneID),
-					OrganizationID: 1,
+					OrganizationID: MustIDBase16(orgOneID),
 					Flux: `option task = {
 name: "itty bitty task",
 every: 10m,
@@ -110,7 +124,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 				tasks: []*influxdb.Task{
 					{
 						ID:             MustIDBase16(dashOneID),
-						OrganizationID: 1,
+						OrganizationID: influxdb.ID(1),
 						Name:           "itty bitty task",
 						Every:          "10m",
 					},
@@ -125,8 +139,13 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			defer done()
 			ctx := context.Background()
 			task, err := s.CreateTask(ctx, tt.args.task)
+			if err != nil {
+				t.Fatalf("could not create task: %v", err)
+			}
+			fmt.Println("..2....")
 
-			defer s.DeleteTask(ctx, task.ID)
+			// fmt.Println(task.ID)
+			// defer s.DeleteTask(ctx, task.ID)
 
 			tasks, _, err := s.FindTasks(ctx, influxdb.TaskFilter{})
 			if err != nil {
@@ -135,6 +154,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 
 			fmt.Println(task)
 			fmt.Println(tasks)
+
+			t.Fatalf("oh no")
 		})
 	}
 }

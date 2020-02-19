@@ -1744,32 +1744,60 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 func initTaskService(f influxdbtesting.TaskFields, t *testing.T) (influxdb.TaskService, string, func()) {
 	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 
+	var o *influxdb.Organization
+	if len(f.Organizations) < 1 {
+		t.Fatal("no orgs found")
+	}
+	o = f.Organizations[0]
+
+	var u *influxdb.User
+	if len(f.Users) < 1 {
+		t.Fatal("no users found")
+	}
+	u = f.Users[0]
+
+	auth := influxdb.Authorization{OrgID: o.ID, UserID: u.ID, Permissions: influxdb.OperPermissions()}
+
 	ctx := context.Background()
+
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// a, ok := ctx.Value("influx/authorizer/v1").(influxdb.Authorizer)
+	// fmt.Println(a)
+	// fmt.Println(ok)
 
-	for _, o := range f.Organizations {
-		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organizations")
-		}
-	}
 	// for _, b := range f.Buckets {
 	// 	if err := svc.PutBucket(ctx, b); err != nil {
 	// 		t.Fatalf("failed to populate buckets")
 	// 	}
 	// }
 
+	if err := svc.PutOrganization(ctx, o); err != nil {
+		t.Fatalf("failed to populate organizations")
+	}
+
+	if err := svc.PutUser(ctx, u); err != nil {
+		t.Fatalf("failed to populate Users")
+	}
+
+	if err := svc.CreateAuthorization(ctx, &auth); err != nil {
+		t.Fatal(err)
+	}
+
 	taskBackend := NewMockTaskBackend(t)
 	taskBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 	taskBackend.TaskService = svc
 	taskBackend.OrganizationService = svc
+	taskBackend.AuthorizationService = svc
+
 	handler := NewTaskHandler(zaptest.NewLogger(t), taskBackend)
 	server := httptest.NewServer(handler)
 	client := TaskService{
